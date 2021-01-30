@@ -12,8 +12,8 @@ class Business {
     this[kMedia] = media;
     this[kView] = view;
     this[kSocketBuilder] = socketBuilder
-      .setOnUserConnected(this[kOnUserConnected].bind(this))
-      .setOnUserDisconnected(this[kOnUserConnected].bind(this))
+      .setOnUserConnected(this[kOnUserConnected]())
+      .setOnUserDisconnected(this[kOnUserDisconnected]())
       .build();
 
     this[kSocketBuilder].emit("join-room", this[kRoom], "allan");
