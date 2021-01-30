@@ -13,6 +13,11 @@ const kOnConnectionOpened = Symbol("kOnConnectionOpened");
 const kOnCallReceived = Symbol("kOnCallReceived");
 const kOnPeerStreamReceived = Symbol("kOnPeerStreamReceived");
 const kPeers = Symbol("kPeers");
+const kOnPeerCallError = Symbol("kOnPeerCallError");
+const kOnCallClose = Symbol("kOnCallClose");
+const kOnRecordPressed = Symbol("kOnRecordPressed");
+const kUserRecording = Symbol("kUserRecording");
+const kStopRecording = Symbol("kStopRecording");
 
 class Business {
   constructor({ room, media, view, socketBuilder, peerBuilder }) {
@@ -28,6 +33,7 @@ class Business {
     this[kCurrentPeer] = {};
 
     this[kPeers] = new Map();
+    this[kUserRecording] = new Map();
   }
 
   static initialize(dependencies) {
@@ -36,6 +42,7 @@ class Business {
   }
 
   async _init() {
+    this[kView].configureRecordButton(this[kOnRecordPressed].bind(this));
     this[kCurrentStream] = await this[kMedia].getCamera(false);
 
     this[kSocket] = this[kSocketBuilder]
@@ -48,14 +55,23 @@ class Business {
       .setOnConnectionOpened(this[kOnConnectionOpened]())
       .setOnCallReceived(this[kOnCallReceived]())
       .setOnPeerStreamReceived(this[kOnPeerStreamReceived]())
+      .setOnCallError(this[kOnPeerCallError]())
+      .setOnCallClose(this[kOnCallClose]())
       .build();
 
-    this.addVideoStream("wesley");
+    this.addVideoStream(this[kCurrentPeer].id);
   }
 
   addVideoStream(userId, stream = this[kCurrentStream]) {
+    const recorderInstance = new Recorder(userId, stream);
+    this[kUserRecording].set(recorderInstance.fileName, recorderInstance);
+
+    if (this.recordingEnabled) {
+      recorderInstance.startRecording();
+    }
+
     const isCurrentId = false;
-    console.log("add video stream here");
+
     this[kView].renderVideo({
       userId,
       muted: false,
@@ -74,6 +90,14 @@ class Business {
   [kOnUserDisconnected]() {
     return (userId) => {
       console.log("user disconnected: ", userId);
+
+      if (this[kPeers].has(userId)) {
+        this[kPeers].get(userId).call.close();
+        this[kPeers].delete(userId);
+      }
+
+      this[kView].setParticipants(this[kPeers].size);
+      this[kView].removeElementVideo(userId);
     };
   }
 
@@ -105,5 +129,44 @@ class Business {
       this[kPeers].set(callerId, { call });
       this[kView].setParticipants(this[kPeers].size);
     };
+  }
+
+  [kOnPeerCallError]() {
+    return (call, error) => {
+      console.log("an call error ocurred: ", error);
+      this[kView].removeVideoElement(call.peer);
+    };
+  }
+
+  [kOnCallClose]() {
+    return (call) => {
+      console.log("call closed", call.peer);
+    };
+  }
+
+  [kOnRecordPressed](recordingEnabled) {
+    this.recordingEnabled = recordingEnabled;
+    for (const [key, value] of this[kUserRecording]) {
+      if (this.recordingEnabled) {
+        value.startRecording();
+        continue;
+      }
+      this[kStopRecording](key);
+    }
+  }
+
+  async [kStopRecording](userId) {
+    const userRecordings = this[kUserRecording];
+    for (const [key, value] of userRecordings) {
+      const isContextUser = key.includes(userId);
+
+      if (!isContextUser) continue;
+
+      const rec = value;
+      const isRecordingActive = rec.recordingActive;
+      if (!isRecordingActive) continue;
+
+      await rec.stopRecording();
+    }
   }
 }
