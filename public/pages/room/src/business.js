@@ -1,16 +1,24 @@
+const kOnUserConnected = Symbol("kOnUserConnected");
+const kOnUserDisconnected = Symbol("kOnUserDisconnected");
+const kCurrentStream = Symbol("kCurrentStream");
+const kRoom = Symbol("kRoom");
+const kMedia = Symbol("kMedia");
+const kView = Symbol("kView");
+const kSocketBuilder = Symbol("kSocketBuilder");
+
 class Business {
   constructor({ room, media, view, socketBuilder }) {
-    this.room = room;
-    this.media = media;
-    this.view = view;
-    this.socketBuilder = socketBuilder
-      .setOnUserConnected(this.onUserConnected)
-      .setOnUserDisconnected(this.onUserDisconnected)
+    this[kRoom] = room;
+    this[kMedia] = media;
+    this[kView] = view;
+    this[kSocketBuilder] = socketBuilder
+      .setOnUserConnected(this[kOnUserConnected].bind(this))
+      .setOnUserDisconnected(this[kOnUserConnected].bind(this))
       .build();
 
-    this.socketBuilder.emit("join-room", this.room, "wesleyazinho");
+    this[kSocketBuilder].emit("join-room", this[kRoom], "allan");
 
-    this.currentStream = {};
+    this[kCurrentStream] = {};
   }
 
   static initialize(dependencies) {
@@ -19,29 +27,29 @@ class Business {
   }
 
   async _init() {
-    this.currentStream = await this.media.getCamera();
-    this.addVideoStream("wesleyzinho");
+    this[kCurrentStream] = await this[kMedia].getCamera();
+    this.addVideoStream("allan");
   }
 
-  addVideoStream(userId, stream = this.currentStream) {
+  addVideoStream(userId, stream = this[kCurrentStream]) {
     const isCurrentId = false;
     console.log("add video stream here");
-    this.view.renderVideo({
+    this[kView].renderVideo({
       userId,
       stream,
       isCurrentId,
     });
   }
 
-  onUserConnected = function () {
+  [kOnUserConnected]() {
     return (userId) => {
       console.log("user connected: ", userId);
     };
-  };
+  }
 
-  onUserDisconnected = function () {
+  [kOnUserDisconnected]() {
     return (userId) => {
       console.log("user disconnected: ", userId);
     };
-  };
+  }
 }
