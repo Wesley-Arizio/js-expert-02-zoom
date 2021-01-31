@@ -18,6 +18,8 @@ const kOnCallClose = Symbol("kOnCallClose");
 const kOnRecordPressed = Symbol("kOnRecordPressed");
 const kUserRecording = Symbol("kUserRecording");
 const kStopRecording = Symbol("kStopRecording");
+const kPlayRecordings = Symbol("kPlayRecordings");
+const kOnLeavePressed = Symbol("kOnLeavePressed");
 
 class Business {
   constructor({ room, media, view, socketBuilder, peerBuilder }) {
@@ -43,7 +45,8 @@ class Business {
 
   async _init() {
     this[kView].configureRecordButton(this[kOnRecordPressed].bind(this));
-    this[kCurrentStream] = await this[kMedia].getCamera(false);
+    this[kView].configureLeaveButton(this[kOnLeavePressed].bind(this));
+    this[kCurrentStream] = await this[kMedia].getCamera();
 
     this[kSocket] = this[kSocketBuilder]
       .setOnUserConnected(this[kOnUserConnected]())
@@ -70,7 +73,7 @@ class Business {
       recorderInstance.startRecording();
     }
 
-    const isCurrentId = false;
+    const isCurrentId = userId === this[kCurrentPeer].id;
 
     this[kView].renderVideo({
       userId,
@@ -97,6 +100,7 @@ class Business {
       }
 
       this[kView].setParticipants(this[kPeers].size);
+      this[kStopRecording](userId);
       this[kView].removeElementVideo(userId);
     };
   }
@@ -125,6 +129,11 @@ class Business {
   [kOnPeerStreamReceived]() {
     return (call, stream) => {
       const callerId = call.peer;
+      if (this[kPeers].has(callerId)) {
+        console.log("calling twice2, ignoring second one", callerId);
+        return;
+      }
+
       this.addVideoStream(callerId, stream);
       this[kPeers].set(callerId, { call });
       this[kView].setParticipants(this[kPeers].size);
@@ -167,6 +176,19 @@ class Business {
       if (!isRecordingActive) continue;
 
       await rec.stopRecording();
+      this[kPlayRecordings](key);
     }
+  }
+
+  [kPlayRecordings](userId) {
+    const user = this[kUserRecording].get(userId);
+    const videoURLs = user.getAllVideoURLs();
+    videoURLs.map((url) => this[kView].renderVideo({ url, userId }));
+  }
+
+  [kOnLeavePressed]() {
+    this[kUserRecording].forEach((value, key) => {
+      value.download();
+    });
   }
 }

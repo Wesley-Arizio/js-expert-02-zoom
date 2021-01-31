@@ -1,5 +1,5 @@
 class Media {
-  async getCamera(audio = false, video = true) {
+  async getCamera(audio = true, video = true) {
     const navigatorMediaDevices = navigator.mediaDevices;
 
     if (!navigatorMediaDevices)
